@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { CalendarView } from './components/CalendarView';
 import { ReservationModal } from './components/ReservationModal';
+import { ReservationsList } from './components/ReservationsList';
+import { Navigation } from './components/Navigation';
 import { useReservations } from './hooks/useReservations';
 import { exportCalendarToPDF } from './utils/pdfExport';
 import { Reservation } from './types/reservation';
@@ -15,9 +17,11 @@ function App() {
     addReservation,
     updateReservation,
     deleteReservation,
-    getReservation
+    getReservation,
+    checkConflict
   } = useReservations();
 
+  const [currentView, setCurrentView] = useState<'calendar' | 'list'>('calendar');
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     mode: 'create' | 'edit';
@@ -84,6 +88,16 @@ function App() {
     exportCalendarToPDF();
   };
 
+  // Mettre à jour une réservation (pour le drag & drop)
+  const handleReservationUpdate = async (id: string, updates: Partial<Omit<Reservation, 'id'>>) => {
+    try {
+      await updateReservation(id, updates);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
+      alert(error instanceof Error ? error.message : 'Erreur lors de la mise à jour');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -137,29 +151,46 @@ function App() {
         </div>
       </header>
 
+      {/* Navigation */}
+      <Navigation currentView={currentView} onViewChange={setCurrentView} />
+
       {/* Contenu principal */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Instructions d'utilisation */}
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">
-            Guide d'utilisation
-          </h3>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Cliquez et glissez pour sélectionner une période et créer une réservation</li>
-            <li>• Double-cliquez sur une réservation pour la modifier</li>
-            <li>• Utilisez les boutons de navigation pour changer de mois</li>
-            <li>• Exportez le calendrier en PDF avec le bouton "Export PDF"</li>
-          </ul>
-        </div>
+        {currentView === 'calendar' ? (
+          <>
+            {/* Instructions d'utilisation */}
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-800 mb-2">
+                Guide d'utilisation
+              </h3>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Cliquez et glissez pour sélectionner une période et créer une réservation</li>
+                <li>• Double-cliquez sur une réservation pour la modifier</li>
+                <li>• Glissez une réservation pour la déplacer (puis cliquez "Enregistrer")</li>
+                <li>• Exportez le calendrier en PDF avec le bouton "Export PDF"</li>
+              </ul>
+            </div>
 
-        {/* Calendrier */}
-        <CalendarView
-          reservations={reservations}
-          apartments={apartments}
-          onDateRangeSelect={handleDateRangeSelect}
-          onReservationEdit={handleReservationEdit}
-          onPrintPDF={handlePrintPDF}
-        />
+            {/* Calendrier */}
+            <CalendarView
+              reservations={reservations}
+              apartments={apartments}
+              onDateRangeSelect={handleDateRangeSelect}
+              onReservationEdit={handleReservationEdit}
+              onPrintPDF={handlePrintPDF}
+              onReservationUpdate={handleReservationUpdate}
+              checkConflict={checkConflict}
+            />
+          </>
+        ) : (
+          /* Liste des réservations */
+          <ReservationsList
+            reservations={reservations}
+            apartments={apartments}
+            onEdit={handleReservationEdit}
+            onDelete={handleDeleteReservation}
+          />
+        )}
 
         {/* Modal de réservation */}
         <ReservationModal

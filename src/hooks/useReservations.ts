@@ -18,14 +18,16 @@ const defaultReservations: Reservation[] = [
   {
     id: '1',
     apartment: 'Appartement A',
+    clientName: 'Martin Dupont',
     startDate: '2025-01-15',
     endDate: '2025-01-20',
-    notes: 'Famille Martin',
+    notes: 'Séjour familial',
     color: '#3B82F6'
   },
   {
     id: '2',
     apartment: 'Appartement B',
+    clientName: 'Sophie Laurent',
     startDate: '2025-01-18',
     endDate: '2025-01-25',
     notes: 'Séjour d\'affaires',
@@ -34,6 +36,7 @@ const defaultReservations: Reservation[] = [
   {
     id: '3',
     apartment: 'Appartement C',
+    clientName: 'Pierre Moreau',
     startDate: '2025-01-22',
     endDate: '2025-01-28',
     notes: 'Vacances d\'hiver',

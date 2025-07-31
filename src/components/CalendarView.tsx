@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
-import { Reservation, Apartment } from '../types/reservation';
+import { Calendar, ChevronLeft, ChevronRight, FileDown, Save, X } from 'lucide-react';
+import { Reservation, Apartment, DragState } from '../types/reservation';
 import { 
   format, 
   startOfMonth, 
@@ -14,7 +14,9 @@ import {
   isWithinInterval,
   isSameDay,
   startOfWeek,
-  endOfWeek
+  endOfWeek,
+  addDays,
+  differenceInDays
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -24,12 +26,8 @@ interface CalendarViewProps {
   onDateRangeSelect: (startDate: string, endDate: string) => void;
   onReservationEdit: (reservation: Reservation) => void;
   onPrintPDF: () => void;
-}
-
-interface DragState {
-  reservationId: string;
-  dragType: 'extend-start' | 'extend-end' | null;
-  originalReservation: Reservation;
+  onReservationUpdate: (id: string, updates: Partial<Omit<Reservation, 'id'>>) => void;
+  checkConflict: (reservation: Omit<Reservation, 'id'>, excludeId?: string) => boolean;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -37,7 +35,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   apartments,
   onDateRangeSelect,
   onReservationEdit,
-  onPrintPDF
+  onPrintPDF,
+  onReservationUpdate,
+  checkConflict
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedRange, setSelectedRange] = useState<{ start: Date | null; end: Date | null }>({
@@ -46,6 +46,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   });
   const [isSelecting, setIsSelecting] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Navigation du calendrier
   const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1));
@@ -73,7 +74,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Gestion de la sélection de plage de dates
   const handleDateClick = useCallback((date: Date) => {
-    if (dragState) return; // Ignore les clics pendant le drag
+    if (dragState?.isActive) return; // Ignore les clics pendant le drag
 
     if (!isSelecting) {
       setSelectedRange({ start: date, end: null });
@@ -95,39 +96,105 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         setSelectedRange({ start: null, end: null });
       }
     }
-  }, [isSelecting, selectedRange.start, onDateRangeSelect, dragState]);
+  }, [isSelecting, selectedRange.start, onDateRangeSelect, dragState?.isActive]);
 
   // Double-clic sur une réservation pour l'éditer
   const handleReservationDoubleClick = useCallback((reservation: Reservation, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (dragState?.isActive) return;
     onReservationEdit(reservation);
-  }, [onReservationEdit]);
+  }, [onReservationEdit, dragState?.isActive]);
 
-  // Gestion du drag pour étendre les réservations
-  const handleDragStart = useCallback((reservation: Reservation, dragType: 'extend-start' | 'extend-end', e: React.MouseEvent) => {
+  // Commencer le drag d'une réservation
+  const handleReservationMouseDown = useCallback((reservation: Reservation, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
     setDragState({
       reservationId: reservation.id,
-      dragType,
-      originalReservation: { ...reservation }
+      originalReservation: { ...reservation },
+      isActive: false
     });
+    setIsDragging(true);
   }, []);
 
-  const handleDragOver = useCallback((date: Date, e: React.DragEvent) => {
-    if (!dragState) return;
-    e.preventDefault();
-  }, [dragState]);
-
-  const handleDrop = useCallback((date: Date, e: React.DragEvent) => {
-    if (!dragState) return;
-    e.preventDefault();
+  // Gestion du mouvement de la souris pour le drag
+  const handleMouseMove = useCallback((date: Date) => {
+    if (!isDragging || !dragState) return;
     
-    // Ici, on devrait mettre à jour la réservation avec la nouvelle date
-    // et afficher les boutons Save/Cancel
-    // Pour cette implémentation, on reset juste le drag state
+    const originalStart = parseISO(dragState.originalReservation.startDate);
+    const originalEnd = parseISO(dragState.originalReservation.endDate);
+    const duration = differenceInDays(originalEnd, originalStart);
+    
+    // Calculer les nouvelles dates basées sur la position de la souris
+    let newStartDate = format(date, 'yyyy-MM-dd');
+    let newEndDate = format(addDays(date, duration), 'yyyy-MM-dd');
+    
+    setDragState(prev => prev ? {
+      ...prev,
+      newStartDate,
+      newEndDate,
+      isActive: true
+    } : null);
+  }, [isDragging, dragState]);
+
+  // Terminer le drag
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Sauvegarder les modifications du drag
+  const handleSaveDrag = useCallback(() => {
+    if (!dragState || !dragState.newStartDate || !dragState.newEndDate) return;
+    
+    const updates = {
+      startDate: dragState.newStartDate,
+      endDate: dragState.newEndDate
+    };
+    
+    // Vérifier les conflits
+    const testReservation = {
+      ...dragState.originalReservation,
+      ...updates
+    };
+    
+    if (checkConflict(testReservation, dragState.reservationId)) {
+      alert('Conflit détecté : cette période est déjà réservée pour cet appartement.');
+      return;
+    }
+    
+    onReservationUpdate(dragState.reservationId, updates);
     setDragState(null);
+  }, [dragState, onReservationUpdate, checkConflict]);
+
+  // Annuler les modifications du drag
+  const handleCancelDrag = useCallback(() => {
+    setDragState(null);
+  }, []);
+
+  // Gestionnaires d'événements globaux pour le drag
+  React.useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+    }
+  }, [isDragging]);
+
+  // Obtenir la réservation en cours de modification
+  const getDraggedReservation = useCallback((reservationId: string): Reservation | null => {
+    if (!dragState || dragState.reservationId !== reservationId || !dragState.isActive) {
+      return null;
+    }
+    
+    return {
+      ...dragState.originalReservation,
+      startDate: dragState.newStartDate || dragState.originalReservation.startDate,
+      endDate: dragState.newEndDate || dragState.originalReservation.endDate
+    };
   }, [dragState]);
 
   // Annuler la sélection
@@ -241,8 +308,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div
                 key={date.toISOString()}
                 onClick={() => handleDateClick(date)}
-                onDragOver={(e) => handleDragOver(date, e)}
-                onDrop={(e) => handleDrop(date, e)}
+                onMouseEnter={() => handleMouseMove(date)}
                 className={`
                   relative min-h-[100px] p-1 border border-gray-200 cursor-pointer transition-colors
                   ${isCurrentMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 text-gray-400'}
@@ -258,38 +324,30 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {/* Réservations */}
                 <div className="mt-1 space-y-1">
                   {dayReservations.map((reservation) => {
+                    const draggedReservation = getDraggedReservation(reservation.id);
+                    const displayReservation = draggedReservation || reservation;
+                    
                     const isStart = isSameDay(parseISO(reservation.startDate), date);
                     const isEnd = isSameDay(parseISO(reservation.endDate), date);
+                    const isDraggedReservation = draggedReservation !== null;
                     
                     return (
                       <div
                         key={reservation.id}
                         onDoubleClick={(e) => handleReservationDoubleClick(reservation, e)}
+                        onMouseDown={(e) => handleReservationMouseDown(reservation, e)}
                         className={`
-                          text-xs px-1 py-0.5 rounded text-white cursor-pointer
-                          hover:opacity-80 transition-opacity relative group
+                          text-xs px-1 py-0.5 rounded text-white cursor-pointer relative group
+                          hover:opacity-80 transition-all duration-200
                           ${isStart ? 'rounded-l' : ''}
                           ${isEnd ? 'rounded-r' : ''}
+                          ${isDraggedReservation ? 'opacity-70 transform scale-105 shadow-lg' : ''}
                         `}
-                        style={{ backgroundColor: reservation.color }}
-                        title={`${reservation.apartment} - ${reservation.notes || 'Pas de notes'}`}
+                        style={{ backgroundColor: displayReservation.color }}
+                        title={`${displayReservation.apartment} - ${displayReservation.clientName} - ${displayReservation.notes || 'Pas de notes'}`}
                       >
-                        {/* Handles pour étendre la réservation */}
-                        {isStart && (
-                          <div
-                            className="absolute left-0 top-0 w-2 h-full cursor-w-resize opacity-0 group-hover:opacity-100 bg-white bg-opacity-30"
-                            onMouseDown={(e) => handleDragStart(reservation, 'extend-start', e)}
-                          />
-                        )}
-                        {isEnd && (
-                          <div
-                            className="absolute right-0 top-0 w-2 h-full cursor-e-resize opacity-0 group-hover:opacity-100 bg-white bg-opacity-30"
-                            onMouseDown={(e) => handleDragStart(reservation, 'extend-end', e)}
-                          />
-                        )}
-                        
                         <div className="truncate">
-                          {isStart ? reservation.apartment : ''}
+                          {isStart ? `${displayReservation.apartment} - ${displayReservation.clientName}` : ''}
                         </div>
                       </div>
                     );
@@ -299,6 +357,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             );
           })}
         </div>
+        
+        {/* Boutons de sauvegarde/annulation pour le drag */}
+        {dragState?.isActive && (
+          <div className="fixed top-4 right-4 bg-white rounded-lg shadow-lg border p-4 z-50">
+            <p className="text-sm text-gray-600 mb-3">
+              Modifier la période de réservation ?
+            </p>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleSaveDrag}
+                className="flex items-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+              >
+                <Save size={14} className="mr-1" />
+                Enregistrer
+              </button>
+              <button
+                onClick={handleCancelDrag}
+                className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+              >
+                <X size={14} className="mr-1" />
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

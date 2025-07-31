@@ -1,6 +1,7 @@
 export interface Reservation {
   id: string;
   apartment: string;
+  clientName: string;
   startDate: string;
   endDate: string;
   notes?: string;
@@ -25,5 +26,21 @@ export interface CalendarEvent {
   end: Date;
   color: string;
   apartment: string;
+  clientName: string;
   notes?: string;
+}
+
+export interface ReservationFilters {
+  apartment?: string;
+  startDate?: string;
+  endDate?: string;
+  clientName?: string;
+}
+
+export interface DragState {
+  reservationId: string;
+  originalReservation: Reservation;
+  newStartDate?: string;
+  newEndDate?: string;
+  isActive: boolean;
 }

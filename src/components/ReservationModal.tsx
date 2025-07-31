@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, MapPin, FileText, Trash2 } from 'lucide-react';
+import { X, Calendar, MapPin, FileText, Trash2, User } from 'lucide-react';
 import { Reservation, Apartment } from '../types/reservation';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -28,6 +28,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     apartment: '',
+    clientName: '',
     startDate: '',
     endDate: '',
     notes: ''
@@ -41,6 +42,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
         // Mode édition
         setFormData({
           apartment: reservation.apartment,
+          clientName: reservation.clientName,
           startDate: reservation.startDate,
           endDate: reservation.endDate,
           notes: reservation.notes || ''
@@ -49,6 +51,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
         // Nouveau avec dates pré-remplies
         setFormData({
           apartment: apartments[0]?.name || '',
+          clientName: '',
           startDate: initialDates.startDate,
           endDate: initialDates.endDate,
           notes: ''
@@ -57,6 +60,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
         // Nouveau vide
         setFormData({
           apartment: apartments[0]?.name || '',
+          clientName: '',
           startDate: '',
           endDate: '',
           notes: ''
@@ -72,6 +76,10 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
 
     if (!formData.apartment) {
       newErrors.apartment = 'Veuillez sélectionner un appartement';
+    }
+
+    if (!formData.clientName.trim()) {
+      newErrors.clientName = 'Le nom du réservataire est requis';
     }
 
     if (!formData.startDate) {
@@ -167,6 +175,26 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
             </select>
             {errors.apartment && (
               <p className="text-red-500 text-sm mt-1">{errors.apartment}</p>
+            )}
+          </div>
+
+          {/* Nom du réservataire */}
+          <div>
+            <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+              <User size={16} className="mr-2" />
+              Nom du réservataire
+            </label>
+            <input
+              type="text"
+              value={formData.clientName}
+              onChange={(e) => handleInputChange('clientName', e.target.value)}
+              placeholder="Nom et prénom du client"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.clientName ? 'border-red-300' : 'border-gray-300'
+              }`}
+            />
+            {errors.clientName && (
+              <p className="text-red-500 text-sm mt-1">{errors.clientName}</p>
             )}
           </div>
 
