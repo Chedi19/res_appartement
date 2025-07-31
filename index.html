@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Application de gestion des réservations d'appartements avec calendrier interactif" />
+    <title>Gestion des Réservations - Calendrier Interactif</title>
+    
+    <!-- Print CSS pour l'export PDF -->
+    <style media="print">
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+      
+      body {
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+      
+      .no-print {
+        display: none !important;
+      }
+      
+      #calendar-container {
+        box-shadow: none !important;
+        page-break-inside: avoid;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
